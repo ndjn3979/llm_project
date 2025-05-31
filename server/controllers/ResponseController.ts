@@ -39,7 +39,7 @@ PREFERRED MOOD: ${mood}
 ${context}
 
 INSTRUCTIONS:
-1. Pick the 1-3 BEST quotes from the provided options that fit their situation
+1. Pick the 1-2 BEST quotes from the provided options that fit their situation
 2. Explain WHY each quote works perfectly for their situation  
 3. Give a quick tip on HOW to deliver it (timing, tone, etc.)
 4. Keep it conversational and fun - this is about using quotes in real conversations!
@@ -51,12 +51,13 @@ FORMAT:
 **Why this works:** [Brief explanation of why it fits]
 **How to use it:** [Quick delivery tip]
 
-[If there are more good options, repeat the format]
+[If there's a second good option, repeat the format]
 
-Keep it short, practical, and fun!`;
+Keep it short, practical, and fun!
+  `;
 }
 
-// Generate response and format it
+// Main controller - generate response and format it
 export const generateMovieQuoteResponse: RequestHandler = async (_req, res, next) => {
   console.log("9. Generating movie quote response");
 
@@ -93,7 +94,7 @@ export const generateMovieQuoteResponse: RequestHandler = async (_req, res, next
         },
         { role: "user", content: prompt }
       ],
-      temperature: 0.6, // Slightly creative but not too wild
+      temperature: 0.6,
       max_tokens: 500   // Keep responses concise
     });
 
@@ -132,11 +133,11 @@ export const generateMovieQuoteResponse: RequestHandler = async (_req, res, next
   }
 };
 
-// Response sender
+// Response sender that handles cache flow
 export const sendMovieQuoteResponse: RequestHandler = async (_req, res, _next) => {
   console.log("14. Sending movie quote response");
 
-  const { finalResponse } = res.locals;
+  const { finalResponse, skipToEnd } = res.locals;
 
   if (!finalResponse) {
     return res.status(500).json({
@@ -146,8 +147,21 @@ export const sendMovieQuoteResponse: RequestHandler = async (_req, res, _next) =
   }
 
   try {
+    // Check if this was a cache hit
+    if (skipToEnd) {
+      // This was a cache hit, send immediately
+      console.log("15. Sending cached response (fast path)");
+      res.status(200).json(finalResponse);
+      return; // Don't call next()
+    }
+
+    // Normal response path - continue to cache saving
     res.status(200).json(finalResponse);
     console.log("15. Response sent successfully");
+    
+    // Continue to cache saving middleware
+    return next();
+    
   } catch (error) {
     console.error("Error sending response:", error);
     res.status(500).json({
