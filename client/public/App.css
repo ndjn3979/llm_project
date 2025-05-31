@@ -230,4 +230,97 @@ button:disabled {
   .quote-results {
     padding: 1.5rem;
   }
+}/* Add these new styles to your existing App.css */
+
+/* Loading Spinner */
+.spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: spin 1s ease-in-out infinite;
+  margin-right: 10px;
+  vertical-align: middle;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading {
+  position: relative;
+  padding-left: 40px;
+}
+
+/* Cache Notice */
+.cache-notice {
+  background-color: #e8f4fd;
+  color: #2980b9;
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.cache-details {
+  font-size: 0.9em;
+  margin-top: 8px;
+  opacity: 0.8;
+}
+
+/* Error States */
+.error-results {
+  text-align: center;
+  padding: 30px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.error-results p {
+  margin-bottom: 20px;
+  color: var(--error-color);
+}
+
+.error-results button {
+  background-color: var(--primary-color);
+}
+
+/* Quote Results Enhancements */
+.quote-results {
+  position: relative;
+}
+
+.score {
+  background-color: #edf2f7;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.8em;
+  margin-left: 8px;
+}
+
+/* Form Container */
+.quote-form-container {
+  background: white;
+  padding: 2rem;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Responsive Adjustments */
+@media (max-width: 480px) {
+  .quote-form,
+  .quote-results {
+    padding: 1rem;
+  }
+  
+  .app-header h1 {
+    font-size: 1.5rem;
+  }
+  
+  .mood-options {
+    grid-template-columns: 1fr;
+  }
 }

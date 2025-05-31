@@ -1,10 +1,34 @@
-import React, { useState} from 'react';
+import React, { useState } from 'react';
 import './App.css';
 import QuoteForm from '../components/QuoteForm';
 import QuoteResults from '../components/QuoteResults';
 
+interface MovieQuote {
+  quote: string;
+  character: string;
+  movie: string;
+  year: number;
+  score: string;
+}
+
+interface ApiResponse {
+  success: boolean;
+  recommendation: string;
+  situation: string;
+  mood: string;
+  quotesFound: number;
+  availableQuotes: MovieQuote[];
+  cached?: boolean;
+  cacheMatch?: {
+    originalQuery: string;
+    similarity: number;
+    cachedAt: number;
+  };
+  timestamp: string;
+}
+
 function App() {
-  const [results, setResults] = useState<any>(null);
+  const [results, setResults] = useState<ApiResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -13,12 +37,30 @@ function App() {
     setError(null);
     
     try {
-        // need recommendation from api
-      //const response = await  (situation, mood);
-      //setResults(response);
+      const response = await fetch('/api/movie-quotes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          naturalLanguageQuery: situation,
+          mood: mood === 'inspirational' ? 'dramatic' : 
+                mood === 'romantic' ? 'dramatic' : 
+                mood === 'neutral' ? 'cool' : 
+                mood === 'serious' ? 'dramatic' : mood
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message?.err || 'Failed to fetch quotes');
+      }
+
+      const data: ApiResponse = await response.json();
+      setResults(data);
     } catch (err) {
-      setError('Failed to get quote recommendations. Please try again.');
-      console.error(err);
+      setError(err instanceof Error ? err.message : 'Failed to get quote recommendations');
+      console.error('API Error:', err);
     } finally {
       setIsLoading(false);
     }
@@ -38,15 +80,17 @@ function App() {
 
       <main className="app-main">
         {!results ? (
-          <QuoteForm onSubmit={handleSubmit} isLoading={isLoading} />
+          <QuoteForm 
+            onSubmit={handleSubmit} 
+            isLoading={isLoading} 
+            error={error || undefined} 
+          />
         ) : (
           <QuoteResults 
             results={results} 
             onReset={handleReset} 
           />
         )}
-
-        {error && <div className="error-message">{error}</div>}
       </main>
 
       <footer className="app-footer">
