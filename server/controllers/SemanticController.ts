@@ -1,6 +1,5 @@
-// server/controllers/semanticCacheController.ts
 import { RequestHandler } from 'express';
-import { ServerError } from '../types';
+import { ServerError } from '../types/Types.js';
 import { Pinecone } from '@pinecone-database/pinecone';
 import OpenAI from 'openai';
 import dotenv from 'dotenv';

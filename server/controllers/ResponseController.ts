@@ -1,5 +1,5 @@
 import { RequestHandler } from 'express';
-import { ServerError } from '../types';
+import { ServerError } from '../types/Types.js';
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
 
@@ -9,7 +9,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
-// Create context from found quotes
+// Create context from found quotes (simplified for text-only)
 function createQuoteContext(searchResults: any): string {
   if (!searchResults.quotes || searchResults.quotes.length === 0) {
     return "No specific movie quotes found in database.";
@@ -20,15 +20,13 @@ function createQuoteContext(searchResults: any): string {
   searchResults.quotes.forEach((result: any, index: number) => {
     const quote = result.quote;
     contextParts.push(`\n${index + 1}. "${quote.quote}"`);
-    contextParts.push(`   - ${quote.character} from ${quote.movie} (${quote.year})`);
-    contextParts.push(`   - Best for: ${quote.situations.join(', ')}`);
-    contextParts.push(`   - Mood: ${quote.mood}`);
+    contextParts.push(`   - Match score: ${result.score.toFixed(2)}`);
   });
 
   return contextParts.join('\n');
 }
 
-// Prompt for movie quote recommendations
+// Updated prompt for text-only quotes
 function createMovieQuotePrompt(situation: string, context: string, mood: string): string {
   return `
 You are a movie quote expert helping someone find the perfect quote for their situation.
@@ -40,24 +38,25 @@ ${context}
 
 INSTRUCTIONS:
 1. Pick the 1-2 BEST quotes from the provided options that fit their situation
-2. Explain WHY each quote works perfectly for their situation  
-3. Give a quick tip on HOW to deliver it (timing, tone, etc.)
-4. Keep it conversational and fun - this is about using quotes in real conversations!
+2. For each quote, identify what movie and character it's from (use your knowledge)
+3. Explain WHY each quote works perfectly for their situation  
+4. Give a quick tip on HOW to deliver it (timing, tone, etc.)
+5. Keep it conversational and fun - this is about using quotes in real conversations!
 
 FORMAT:
 **Perfect Quote for Your Situation:**
-"[Quote]" - [Character] from [Movie]
+"[Quote]" - [Character] from [Movie] ([Year if you know it])
 
 **Why this works:** [Brief explanation of why it fits]
 **How to use it:** [Quick delivery tip]
 
 [If there's a second good option, repeat the format]
 
-Keep it short, practical, and fun!
+Keep it short, practical, and fun! If you don't recognize a quote, just say "from a classic movie" instead of guessing.
   `;
 }
 
-// Main controller - generate response and format it
+// Main controller - generate response and format it (updated for text-only)
 export const generateMovieQuoteResponse: RequestHandler = async (_req, res, next) => {
   console.log("9. Generating movie quote response");
 
@@ -90,7 +89,7 @@ export const generateMovieQuoteResponse: RequestHandler = async (_req, res, next
       messages: [
         { 
           role: "system", 
-          content: "You are a fun movie quote expert who helps people find perfect quotes for their conversations. Be casual, helpful, and enthusiastic!" 
+          content: "You are a fun movie quote expert who helps people find perfect quotes for their conversations. You're great at identifying movies and characters from quotes. Be casual, helpful, and enthusiastic!" 
         },
         { role: "user", content: prompt }
       ],
@@ -101,7 +100,7 @@ export const generateMovieQuoteResponse: RequestHandler = async (_req, res, next
     const recommendation = completion.choices[0].message.content?.trim() || '';
     console.log("12. AI recommendation generated");
 
-    // Response format
+    // Response format (simplified)
     const response = {
       success: true,
       recommendation: recommendation,
@@ -110,9 +109,9 @@ export const generateMovieQuoteResponse: RequestHandler = async (_req, res, next
       quotesFound: searchResults.totalFound,
       availableQuotes: searchResults.quotes.map((result: any) => ({
         quote: result.quote.quote,
-        character: result.quote.character,
-        movie: result.quote.movie,
-        year: result.quote.year,
+        character: "AI will identify", // Let AI identify in the response
+        movie: "AI will identify",
+        year: 0,
         score: result.score.toFixed(2)
       })),
       timestamp: new Date().toISOString()
@@ -134,7 +133,7 @@ export const generateMovieQuoteResponse: RequestHandler = async (_req, res, next
 };
 
 // Response sender that handles cache flow
-export const sendMovieQuoteResponse: RequestHandler = async (_req, res, _next) => {
+export const sendMovieQuoteResponse: RequestHandler = async (_req, res, next) => {
   console.log("14. Sending movie quote response");
 
   const { finalResponse, skipToEnd } = res.locals;
@@ -151,11 +150,10 @@ export const sendMovieQuoteResponse: RequestHandler = async (_req, res, _next) =
     if (skipToEnd) {
       // This was a cache hit, send immediately
       console.log("15. Sending cached response (fast path)");
-      res.status(200).json(finalResponse);
-      return; // Don't call next()
+      return res.status(200).json(finalResponse);
     }
 
-    // Normal response path - continue to cache saving
+    // Normal response path - send response then continue to cache saving
     res.status(200).json(finalResponse);
     console.log("15. Response sent successfully");
     
@@ -164,7 +162,7 @@ export const sendMovieQuoteResponse: RequestHandler = async (_req, res, _next) =
     
   } catch (error) {
     console.error("Error sending response:", error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to send response'
     });

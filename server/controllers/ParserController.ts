@@ -1,6 +1,5 @@
-// server/controllers/movieQuoteParserController.ts
 import { Request, RequestHandler } from 'express';
-import { ServerError } from '../types';
+import { ServerError } from '../types/Types.js';
 
 // Conversation types and social situations where movie quotes work well
 function detectSituationType(query: string): string[] {
