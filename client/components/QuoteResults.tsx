@@ -12,8 +12,8 @@ interface MovieQuote {
 interface ApiResponse {
   success: boolean;
   recommendation: string;
-  situation: string;
-  mood: string;
+  situation?: string;
+  mood?: string;
   quotesFound: number;
   availableQuotes: MovieQuote[];
   cached?: boolean;
@@ -27,13 +27,14 @@ interface ApiResponse {
 interface QuoteResultsProps {
   results: ApiResponse;
   onReset: () => void;
+  searchMode: 'situation' | 'actor' | 'movie';
 }
 
-const QuoteResults: React.FC<QuoteResultsProps> = ({ results, onReset }) => {
+const QuoteResults: React.FC<QuoteResultsProps> = ({ results, onReset, searchMode }) => {
   if (!results.success) {
     return (
       <div className="error-results">
-        <p>No results found for your situation.</p>
+        <p>No results found for your {searchMode} search.</p>
         <button onClick={onReset}>Try Again</button>
       </div>
     );
@@ -54,18 +55,29 @@ const QuoteResults: React.FC<QuoteResultsProps> = ({ results, onReset }) => {
       )}
 
       <div className="results-header">
-        <h2>Perfect quotes for your situation</h2>
-        <p className="situation">"{results.situation}"</p>
-        <p className="mood">Mood: {results.mood}</p>
+        <h2>
+          {searchMode === 'situation' ? 'Perfect quotes for your situation' : 
+           searchMode === 'actor' ? 'Quotes by this actor' : 
+           'Quotes from this movie'}
+        </h2>
+        
+        {searchMode === 'situation' && results.situation && (
+          <>
+            <p className="situation">"{results.situation}"</p>
+            {results.mood && <p className="mood">Mood: {results.mood}</p>}
+          </>
+        )}
       </div>
 
-      <div className="recommendation">
-        <MarkdownRenderer content={results.recommendation} />
-      </div>
+      {results.recommendation && (
+        <div className="recommendation">
+          <MarkdownRenderer content={results.recommendation} />
+        </div>
+      )}
 
       {results.availableQuotes && results.availableQuotes.length > 0 && (
         <div className="all-quotes">
-          <h3>All matching quotes we considered:</h3>
+          <h3>{results.availableQuotes.length} matching quotes found:</h3>
           <ul>
             {results.availableQuotes.map((quote, index) => (
               <li key={index}>
@@ -73,7 +85,7 @@ const QuoteResults: React.FC<QuoteResultsProps> = ({ results, onReset }) => {
                   "{quote.quote}"
                   <footer>
                     — {quote.character} in <cite>{quote.movie}</cite> ({quote.year})
-                    <span className="score">Match score: {quote.score}</span>
+                    {quote.score && <span className="score">Match score: {quote.score}</span>}
                   </footer>
                 </blockquote>
               </li>

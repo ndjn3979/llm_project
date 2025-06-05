@@ -31,24 +31,40 @@ function App() {
   const [results, setResults] = useState<ApiResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchMode, setSearchMode] = useState<'situation' | 'actor' | 'movie'>('situation');
 
-  const handleSubmit = async (situation: string, mood: string) => {
+  const handleSubmit = async (data: {
+    situation?: string;
+    mood?: string;
+    actor?: string;
+    movie?: string;
+  }) => {
     setIsLoading(true);
     setError(null);
     
     try {
+      let body: any = {};
+      
+      if (searchMode === 'situation') {
+        body = {
+          naturalLanguageQuery: data.situation,
+          mood: data.mood === 'inspirational' ? 'dramatic' : 
+                data.mood === 'romantic' ? 'dramatic' : 
+                data.mood === 'neutral' ? 'cool' : 
+                data.mood === 'serious' ? 'dramatic' : data.mood
+        };
+      } else if (searchMode === 'actor') {
+        body = { actorName: data.actor };
+      } else if (searchMode === 'movie') {
+        body = { movieTitle: data.movie };
+      }
+
       const response = await fetch('/api/movie-quotes', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          naturalLanguageQuery: situation,
-          mood: mood === 'inspirational' ? 'dramatic' : 
-                mood === 'romantic' ? 'dramatic' : 
-                mood === 'neutral' ? 'cool' : 
-                mood === 'serious' ? 'dramatic' : mood
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
@@ -56,10 +72,10 @@ function App() {
         throw new Error(errorData.message?.err || 'Failed to fetch quotes');
       }
 
-      const data: ApiResponse = await response.json();
-      setResults(data);
+      const result: ApiResponse = await response.json();
+      setResults(result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to get quote recommendations');
+      setError(err instanceof Error ? err.message : 'Failed to get quotes');
       console.error('API Error:', err);
     } finally {
       setIsLoading(false);
@@ -74,21 +90,44 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>Movie Quote Recommendation</h1>
-        <p>Find the perfect movie quote for any situation</p>
+        <h1>CineQuote</h1>
+        <p>Find the perfect movie quote for any situation or by actor/movie</p>
       </header>
+
+      <div className="search-mode-toggle">
+        <button
+          className={searchMode === 'situation' ? 'active' : ''}
+          onClick={() => setSearchMode('situation')}
+        >
+          Search by Situation
+        </button>
+        <button
+          className={searchMode === 'actor' ? 'active' : ''}
+          onClick={() => setSearchMode('actor')}
+        >
+          Search by Actor
+        </button>
+        <button
+          className={searchMode === 'movie' ? 'active' : ''}
+          onClick={() => setSearchMode('movie')}
+        >
+          Search by Movie
+        </button>
+      </div>
 
       <main className="app-main">
         {!results ? (
           <QuoteForm 
             onSubmit={handleSubmit} 
             isLoading={isLoading} 
-            error={error || undefined} 
+            error={error || undefined}
+            searchMode={searchMode}
           />
         ) : (
           <QuoteResults 
             results={results} 
             onReset={handleReset} 
+            searchMode={searchMode}
           />
         )}
       </main>

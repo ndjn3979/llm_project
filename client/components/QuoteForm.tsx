@@ -1,12 +1,17 @@
-
 import React, { useState } from 'react';
 
 interface QuoteFormProps {
-    // function that takes situation and mood strings
-  onSubmit: (situation: string, mood: string) => void;
+  onSubmit: (data: {
+    situation?: string;
+    mood?: string;
+    actor?: string;
+    movie?: string;
+  }) => void;
   isLoading: boolean;
   error?: string;
+  searchMode: 'situation' | 'actor' | 'movie';
 }
+
 const moodOptions = [
   { value: 'funny', label: 'Funny' },
   { value: 'cool', label: 'Cool/Badass' },
@@ -17,15 +22,22 @@ const moodOptions = [
   { value: 'neutral', label: 'Neutral' },
   { value: 'serious', label: 'Serious' }
 ];
-const QuoteForm: React.FC<QuoteFormProps> = ({ onSubmit, isLoading, error }) => {
-  const [situation, setSituation] = useState(''); // for user's input
-  const [mood, setMood] = useState('funny'); 
+
+const QuoteForm: React.FC<QuoteFormProps> = ({ onSubmit, isLoading, error, searchMode }) => {
+  const [situation, setSituation] = useState('');
+  const [mood, setMood] = useState('funny');
+  const [actor, setActor] = useState('');
+  const [movie, setMovie] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // check if it is not empty
-    if (situation.trim()) {
-      onSubmit(situation, mood);
+    
+    if (searchMode === 'situation' && situation.trim()) {
+      onSubmit({ situation, mood });
+    } else if (searchMode === 'actor' && actor.trim()) {
+      onSubmit({ actor });
+    } else if (searchMode === 'movie' && movie.trim()) {
+      onSubmit({ movie });
     }
   };
 
@@ -34,47 +46,85 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSubmit, isLoading, error }) => 
       {error && <div className="error-message">{error}</div>}
       
       <form className="quote-form" onSubmit={handleSubmit}>
-        <div className="form-group">
-          <label htmlFor="situation">Describe your situation:</label>
-          <textarea
-            id="situation"
-            value={situation}
-            onChange={(e) => setSituation(e.target.value)}
-            placeholder="E.g., My friend just roasted me and I need a perfect comeback"
-            required
-            rows={4}
-            disabled={isLoading}
-          />
-        </div>
+        {searchMode === 'situation' && (
+          <>
+            <div className="form-group">
+              <label htmlFor="situation">Describe your situation:</label>
+              <textarea
+                id="situation"
+                value={situation}
+                onChange={(e) => setSituation(e.target.value)}
+                placeholder="E.g., My friend just roasted me and I need a perfect comeback"
+                required
+                rows={4}
+                disabled={isLoading}
+              />
+            </div>
 
-        <div className="form-group">
-          <label htmlFor="mood">Preferred mood:</label>
-          <select
-            id="mood"
-            value={mood}
-            onChange={(e) => setMood(e.target.value)}
-            disabled={isLoading}
-          >
-            {moodOptions.map(option => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
+            <div className="form-group">
+              <label htmlFor="mood">Preferred mood:</label>
+              <select
+                id="mood"
+                value={mood}
+                onChange={(e) => setMood(e.target.value)}
+                disabled={isLoading}
+              >
+                {moodOptions.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </>
+        )}
+
+        {searchMode === 'actor' && (
+          <div className="form-group">
+            <label htmlFor="actor">Actor Name:</label>
+            <input
+              id="actor"
+              type="text"
+              value={actor}
+              onChange={(e) => setActor(e.target.value)}
+              placeholder="E.g., Tom Hanks, Tom Cruise"
+              required
+              disabled={isLoading}
+            />
+          </div>
+        )}
+
+        {searchMode === 'movie' && (
+          <div className="form-group">
+            <label htmlFor="movie">Movie Title:</label>
+            <input
+              id="movie"
+              type="text"
+              value={movie}
+              onChange={(e) => setMovie(e.target.value)}
+              placeholder="E.g., The Godfather, Titanic"
+              required
+              disabled={isLoading}
+            />
+          </div>
+        )}
 
         <button 
           type="submit" 
-          disabled={isLoading || !situation.trim()}
+          disabled={isLoading || 
+            (searchMode === 'situation' && !situation.trim()) ||
+            (searchMode === 'actor' && !actor.trim()) ||
+            (searchMode === 'movie' && !movie.trim())
+          }
           className={isLoading ? 'loading' : ''}
         >
           {isLoading ? (
             <>
               <span className="spinner"></span>
-              Finding perfect quotes...
+              {searchMode === 'situation' ? 'Finding perfect quotes...' : 'Searching quotes...'}
             </>
           ) : (
-            'Get Movie Quotes'
+            searchMode === 'situation' ? 'Get Movie Quotes' : 'Find Quotes'
           )}
         </button>
       </form>
