@@ -6,19 +6,19 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import { parseMovieQuoteRequest } from '../controllers/ParserController.js';
+import { checkSemanticCache, saveToSemanticCache } from '../controllers/SemanticController.js';
 import { searchMovieQuotes } from '../controllers/FinderController.js';
 import { generateMovieQuoteResponse, sendMovieQuoteResponse } from '../controllers/ResponseController.js';
 
 const router = express.Router();
 
-// Main movie quotes endpoint (with caching disabled for testing)
-// Did a lot of testing because I didn't know 'namespace' would be an issue
+// Main movie quotes endpoint w/ semantic caching enabled
 router.post('/movie-quotes', 
   // Step 1: Parse the request and extract situation/mood
   parseMovieQuoteRequest,
   
-  // Step 2: Cache disabled for testing
-  // checkSemanticCache,
+  // Step 2: Check if we have a cached response for similar queries
+  checkSemanticCache,
   
   // Step 3: Search for relevant movie quotes
   searchMovieQuotes,
@@ -26,11 +26,11 @@ router.post('/movie-quotes',
   // Step 4: Generate AI response with the found quotes
   generateMovieQuoteResponse,
   
-  // Step 5: Send response
+  // Step 5: Send response (handles both cache hits and normal responses)
   sendMovieQuoteResponse,
   
-  // Step 6: Cache saving disabled for testing
-  // saveToSemanticCache
+  // Step 6: Save to cache for future similar queries (only for non-cached responses)
+  saveToSemanticCache
 );
 
 // Test endpoint to check if API is working
@@ -103,12 +103,11 @@ router.get('/test-simple', async (req, res) => {
 
     const index = pinecone.Index(process.env.PINECONE_INDEX!, process.env.PINECONE_HOST!);
     
-    // Most basic possible query in 'default' namespace
-    const simpleVector = new Array(1536).fill(0.01); // Very small values
-    
+    // Basic query in 'default' namespace
+    const simpleVector = new Array(1536).fill(0.01);     
     const result = await index.namespace('default').query({
       vector: simpleVector,
-      topK: 3 // Very small number
+      topK: 3
     });
     
     res.json({

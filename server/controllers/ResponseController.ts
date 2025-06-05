@@ -9,7 +9,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
-// Create context from found quotes (simplified for text-only)
+// Create context from found quotes (text-only)
 function createQuoteContext(searchResults: any): string {
   if (!searchResults.quotes || searchResults.quotes.length === 0) {
     return "No specific movie quotes found in database.";
@@ -26,7 +26,7 @@ function createQuoteContext(searchResults: any): string {
   return contextParts.join('\n');
 }
 
-// Updated prompt for text-only quotes
+// Prompt for text-only quotes
 function createMovieQuotePrompt(situation: string, context: string, mood: string): string {
   return `
 You are a movie quote expert helping someone find the perfect quote for their situation.
@@ -41,7 +41,7 @@ INSTRUCTIONS:
 2. For each quote, identify what movie and character it's from (use your knowledge)
 3. Explain WHY each quote works perfectly for their situation  
 4. Give a quick tip on HOW to deliver it (timing, tone, etc.)
-5. Keep it conversational and fun - this is about using quotes in real conversations!
+5. Keep it conversational, practical, and fun - this is about using quotes in real conversations!
 
 FORMAT:
 **Perfect Quote for Your Situation:**
@@ -51,14 +51,19 @@ FORMAT:
 **How to use it:** [Quick delivery tip]
 
 [If there's a second good option, repeat the format]
-
-Keep it short, practical, and fun! If you don't recognize a quote, just say "from a classic movie" instead of guessing.
+[If you don't recognize a quote, just say "from a classic movie" instead of guessing.]
   `;
 }
 
 // Main controller - generate response and format it (updated for text-only)
 export const generateMovieQuoteResponse: RequestHandler = async (_req, res, next) => {
   console.log("9. Generating movie quote response");
+
+  // Skip if this was a cache hit
+  if (res.locals.skipToEnd) {
+    console.log("Skipping response generation - cache hit");
+    return next();
+  }
 
   const { naturalLanguageQuery, queryContext, searchResults } = res.locals;
 

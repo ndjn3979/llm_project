@@ -6,7 +6,6 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Initialize clients
 const pinecone = new Pinecone({
   apiKey: process.env.PINECONE_API_KEY!
 });
@@ -15,17 +14,27 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!
 });
 
-// Separate namespace for cache in Pinecone
-const CACHE_INDEX_NAME = 'movie-quotes-cache'; 
-const SIMILARITY_THRESHOLD = 0.85; // Cache hit threshold from your flow
+// Cache index configuration
+const CACHE_INDEX_NAME = 'cache'; 
+const SIMILARITY_THRESHOLD = 0.95; // Changed from 0.85 to 0.95 for higher precision
 
 let cacheIndex: any = null;
 
-try {
-  cacheIndex = pinecone.Index(CACHE_INDEX_NAME);
-  console.log(`Connected to cache index: ${CACHE_INDEX_NAME}`);
-} catch (error) {
-  console.error("Could not connect to cache index:", error);
+// Initialize cache index with host
+if (process.env.PINECONE_CACHE_HOST) {
+  try {
+    cacheIndex = pinecone.Index(CACHE_INDEX_NAME, process.env.PINECONE_CACHE_HOST);
+    console.log(`Connected to cache index: ${CACHE_INDEX_NAME} at ${process.env.PINECONE_CACHE_HOST}`);
+  } catch (error) {
+    console.error("Could not connect to cache index with host:", error);
+  }
+} else {
+  try {
+    cacheIndex = pinecone.Index(CACHE_INDEX_NAME);
+    console.log(`Connected to cache index: ${CACHE_INDEX_NAME}`);
+  } catch (error) {
+    console.error("Could not connect to cache index:", error);
+  }
 }
 
 // Create embedding for user query
@@ -69,7 +78,7 @@ export const checkSemanticCache: RequestHandler = async (req, res, next) => {
     console.log("1. Creating embedding for user query");
     const queryEmbedding = await createQueryEmbedding(userQuery);
 
-    // Search cache namespace for similar vectors
+    // Search cache for similar vectors
     console.log("2. Searching cache for similar queries");
     const cacheResults = await cacheIndex.query({
       vector: queryEmbedding,
@@ -84,7 +93,7 @@ export const checkSemanticCache: RequestHandler = async (req, res, next) => {
 
       console.log(`3. Best cache match similarity: ${similarity.toFixed(3)}`);
 
-      // Similarity ≥ 0.85? - CACHE HIT PATH
+      // Similarity ≥ 0.95? - CACHE HIT PATH
       if (similarity >= SIMILARITY_THRESHOLD && bestMatch.metadata) {
         console.log("🎯 CACHE HIT! Returning cached response");
 
@@ -93,6 +102,10 @@ export const checkSemanticCache: RequestHandler = async (req, res, next) => {
           success: true,
           recommendation: bestMatch.metadata.llmResponse as string,
           situation: userQuery,
+          mood: bestMatch.metadata.mood as string || 'funny',
+          quotesFound: bestMatch.metadata.quotesFound as number || 0,
+          // Parse availableQuotes back from string
+          availableQuotes: JSON.parse(bestMatch.metadata.availableQuotesText as string || '[]'),
           cached: true,
           cacheMatch: {
             originalQuery: bestMatch.metadata.originalQuery as string,
@@ -127,7 +140,7 @@ export const checkSemanticCache: RequestHandler = async (req, res, next) => {
   }
 };
 
-// Miss - save LLM response to cache after generation
+// Save LLM response to cache after generation
 export const saveToSemanticCache: RequestHandler = async (_req, res, next) => {
   console.log("16. Saving response to semantic cache");
 
@@ -136,12 +149,12 @@ export const saveToSemanticCache: RequestHandler = async (_req, res, next) => {
 
   if (!finalResponse || !queryEmbedding || !originalQuery || res.locals.skipToEnd) {
     console.log("Skipping cache save (missing data or was cache hit)");
-    return next();
+    return; // Don't call next() - we're done
   }
 
   if (!cacheIndex) {
     console.log("Cache not available, skipping save");
-    return next();
+    return; // Don't call next() - we're done
   }
 
   try {
@@ -150,19 +163,23 @@ export const saveToSemanticCache: RequestHandler = async (_req, res, next) => {
 
     if (llmResponse.length === 0) {
       console.log("Empty LLM response, not caching");
-      return next();
+      return; // Don't call next() - we're done
     }
 
     // Create unique cache entry ID
     const cacheId = `cache_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    // SAVE to cache namespace with query embedding and LLM response
+    // SAVE to cache with query embedding + essential AI response data
     const cacheVector = {
       id: cacheId,
       values: queryEmbedding,
       metadata: {
         originalQuery: originalQuery,
         llmResponse: llmResponse,
+        mood: finalResponse.mood,
+        quotesFound: finalResponse.quotesFound,
+        // Convert availableQuotes to a simple string for storage
+        availableQuotesText: JSON.stringify(finalResponse.availableQuotes),
         timestamp: Date.now(),
         queryLength: originalQuery.length
       }
@@ -175,29 +192,5 @@ export const saveToSemanticCache: RequestHandler = async (_req, res, next) => {
 
   } catch (error: any) {
     console.error("Error saving to cache:", error);
-    // Don't fail the request if cache save fails
-  }
-
-  return next();
-};
-
-// Utility function to clear old cache entries (optional)
-export const clearOldCacheEntries = async (olderThanDays: number = 30): Promise<void> => {
-  if (!cacheIndex) {
-    throw new Error("Cache index not available");
-  }
-
-  const cutoffTime = Date.now() - (olderThanDays * 24 * 60 * 60 * 1000);
-  
-  try {
-    // This would require fetching all entries and filtering - 
-    // implementation depends on your cache management strategy
-    console.log(`Clearing cache entries older than ${olderThanDays} days`);
-    
-    // For now, just log - you might want to implement this based on your needs
-    console.log("Cache cleanup not implemented yet");
-    
-  } catch (error) {
-    console.error("Error clearing old cache entries:", error);
   }
 };
