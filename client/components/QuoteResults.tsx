@@ -3,7 +3,7 @@ import MarkdownRenderer from './MarkdownRenderer';
 
 interface MovieQuote {
   quote: string;
-  character: string;
+  actor: string;
   movie: string;
   year: number;
   score: string;
@@ -84,7 +84,7 @@ const QuoteResults: React.FC<QuoteResultsProps> = ({ results, onReset, searchMod
                 <blockquote>
                   "{quote.quote}"
                   <footer>
-                    — {quote.character} in <cite>{quote.movie}</cite> ({quote.year})
+                    — {quote.actor} in <cite>{quote.movie}</cite> ({quote.year})
                     {quote.score && <span className="score">Match score: {quote.score}</span>}
                   </footer>
                 </blockquote>

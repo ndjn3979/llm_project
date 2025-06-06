@@ -10,7 +10,7 @@ export interface ServerError {
 // Movie quote interface
 export interface MovieQuote {
   quote: string;
-  character: string;
+  actor: string;
   movie: string;
   year: number;
   situations: string[];
@@ -39,7 +39,7 @@ export interface ApiResponse {
   quotesFound: number;
   availableQuotes: {
     quote: string;
-    character: string;
+    actor: string;
     movie: string;
     year: number;
     score: string;

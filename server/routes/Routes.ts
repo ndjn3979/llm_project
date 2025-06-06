@@ -8,11 +8,19 @@ dotenv.config();
 import { parseMovieQuoteRequest } from '../controllers/ParserController.js';
 import { checkSemanticCache, saveToSemanticCache } from '../controllers/SemanticController.js';
 import { searchMovieQuotes } from '../controllers/FinderController.js';
-import { generateMovieQuoteResponse, sendMovieQuoteResponse } from '../controllers/ResponseController.js';
+import { 
+  generateMovieQuoteResponse, 
+  sendMovieQuoteResponse,
+  searchByActor,
+  generateActorResponse,
+  searchByMovie,
+  generateMovieResponse,
+  sendResponse
+} from '../controllers/ResponseController.js';
 
 const router = express.Router();
 
-// Main movie quotes endpoint w/ semantic caching enabled
+// Main movie quotes endpoint (situation-based search with semantic caching)
 router.post('/movie-quotes', 
   // Step 1: Parse the request and extract situation/mood
   parseMovieQuoteRequest,
@@ -31,6 +39,30 @@ router.post('/movie-quotes',
   
   // Step 6: Save to cache for future similar queries (only for non-cached responses)
   saveToSemanticCache
+);
+
+// Actor-based search endpoint (clean controller chain)
+router.post('/search-by-actor',
+  // Step 1-8: Search for quotes by actor
+  searchByActor,
+  
+  // Step 9-11: Generate AI response to verify actor quotes
+  generateActorResponse,
+  
+  // Step 12: Send response
+  sendResponse
+);
+
+// Movie-based search endpoint (clean controller chain)
+router.post('/search-by-movie',
+  // Step 1-9: Search for quotes by movie
+  searchByMovie,
+  
+  // Step 10-12: Generate AI response to verify movie quotes
+  generateMovieResponse,
+  
+  // Step 12: Send response
+  sendResponse
 );
 
 // Test endpoint to check if API is working
@@ -103,11 +135,12 @@ router.get('/test-simple', async (req, res) => {
 
     const index = pinecone.Index(process.env.PINECONE_INDEX!, process.env.PINECONE_HOST!);
     
-    // Basic query in 'default' namespace
-    const simpleVector = new Array(1536).fill(0.01);     
+    // Most basic possible query in 'default' namespace
+    const simpleVector = new Array(1536).fill(0.01); // Very small values
+    
     const result = await index.namespace('default').query({
       vector: simpleVector,
-      topK: 3
+      topK: 3 // Very small number
     });
     
     res.json({
@@ -207,6 +240,8 @@ router.get('/health', (req, res) => {
     status: 'healthy',
     endpoints: [
       'POST /api/movie-quotes - Get movie quote recommendations',
+      'POST /api/search-by-actor - Search quotes by actor name',
+      'POST /api/search-by-movie - Search quotes by movie title',
       'GET /api/test - Test endpoint',
       'GET /api/test-simple - Simple Pinecone test',
       'GET /api/test-new-key - Test with new API key',

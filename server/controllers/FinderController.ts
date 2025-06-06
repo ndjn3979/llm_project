@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+// Initialize clients
 const pinecone = new Pinecone({
   apiKey: process.env.PINECONE_API_KEY!
 });
@@ -14,7 +15,9 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!
 });
 
+// Pinecone index for movie quotes
 const QUOTES_INDEX_NAME = process.env.PINECONE_INDEX || 'quotes';
+
 let quotesIndex: any = null;
 
 // Initialize Pinecone index
@@ -181,7 +184,7 @@ export const searchMovieQuotes: RequestHandler = async (req, res, next) => {
       quotes: scoredQuotes.map(match => ({
         quote: {
           quote: match.metadata?.text || 'Unknown quote',
-          character: 'Unknown', // Will be filled by AI
+          actor: 'Unknown', // Will be filled by AI
           movie: 'Unknown Movie', // Will be filled by AI
           year: 0, // Will be filled by AI
           situations: situationTypes, // Use detected situations

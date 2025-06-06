@@ -34,38 +34,43 @@ function App() {
   const [searchMode, setSearchMode] = useState<'situation' | 'actor' | 'movie'>('situation');
 
   const handleSubmit = async (data: {
-    situation?: string;
-    mood?: string;
-    actor?: string;
-    movie?: string;
-  }) => {
-    setIsLoading(true);
-    setError(null);
+  situation?: string;
+  mood?: string;
+  actor?: string;
+  movie?: string;
+}) => {
+  setIsLoading(true);
+  setError(null);
+  
+  try {
+    let body: any = {};
+    let endpoint = '/api/movie-quotes';
     
-    try {
-      let body: any = {};
-      
-      if (searchMode === 'situation') {
-        body = {
-          naturalLanguageQuery: data.situation,
-          mood: data.mood === 'inspirational' ? 'dramatic' : 
-                data.mood === 'romantic' ? 'dramatic' : 
-                data.mood === 'neutral' ? 'cool' : 
-                data.mood === 'serious' ? 'dramatic' : data.mood
-        };
-      } else if (searchMode === 'actor') {
-        body = { actorName: data.actor };
-      } else if (searchMode === 'movie') {
-        body = { movieTitle: data.movie };
-      }
+    // Added searchMode toggles
 
-      const response = await fetch('/api/movie-quotes', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body),
-      });
+    if (searchMode === 'situation') {
+      body = {
+        naturalLanguageQuery: data.situation,
+        mood: data.mood === 'inspirational' ? 'dramatic' : 
+              data.mood === 'romantic' ? 'dramatic' : 
+              data.mood === 'neutral' ? 'cool' : 
+              data.mood === 'serious' ? 'dramatic' : data.mood
+      };
+    } else if (searchMode === 'actor') {
+      endpoint = '/api/search-by-actor';
+      body = { actorName: data.actor };
+    } else if (searchMode === 'movie') {
+      endpoint = '/api/search-by-movie';
+      body = { movieTitle: data.movie };
+    }
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
 
       if (!response.ok) {
         const errorData = await response.json();
