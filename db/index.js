@@ -56,14 +56,20 @@ async function upsertToPinecone(vectors) {
     const row = data[i];
 
     const quote = row.quote;
+    const movie = row.movie;
+    const year = row.year;
     if (!quote) continue;
 
     const embedding = await getEmbedding(quote);
 
     vectors.push({
-      id: `quote-${i}`,
+      id: `${i}`,
       values: embedding,
-      metadata: { text: quote },
+      metadata: { 
+        text: quote,
+        movie: movie,
+        year: year
+      },
     });
 
     if (vectors.length === 100 || i === data.length - 1) {
