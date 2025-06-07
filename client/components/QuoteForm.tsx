@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface QuoteFormProps {
   onSubmit: (data: {
@@ -28,6 +28,14 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSubmit, isLoading, error, searc
   const [mood, setMood] = useState('funny');
   const [actor, setActor] = useState('');
   const [movie, setMovie] = useState('');
+
+  // Reset form fields when search mode changes
+  useEffect(() => {
+    setSituation('');
+    setMood('funny');
+    setActor('');
+    setMovie('');
+  }, [searchMode]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

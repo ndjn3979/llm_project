@@ -106,6 +106,13 @@ function App() {
         },
         body: JSON.stringify(body),
       });
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -141,6 +148,12 @@ function App() {
   const handleReset = () => {
     setResults(null);
     setError(null);
+  };
+
+  const handleSearchModeChange = (mode: 'situation' | 'actor' | 'movie') => {
+    setSearchMode(mode);
+    setResults(null); // Clear results when changing search mode
+    setError(null); // Clear any errors
   };
 
   return (
@@ -181,19 +194,19 @@ function App() {
       <div className="search-mode-toggle">
         <button
           className={searchMode === 'situation' ? 'active' : ''}
-          onClick={() => setSearchMode('situation')}
+          onClick={() => handleSearchModeChange('situation')}
         >
           Search by Situation
         </button>
         <button
           className={searchMode === 'actor' ? 'active' : ''}
-          onClick={() => setSearchMode('actor')}
+          onClick={() => handleSearchModeChange('actor')}
         >
           Search by Actor
         </button>
         <button
           className={searchMode === 'movie' ? 'active' : ''}
-          onClick={() => setSearchMode('movie')}
+          onClick={() => handleSearchModeChange('movie')}
         >
           Search by Movie
         </button>
