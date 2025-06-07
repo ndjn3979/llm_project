@@ -106,13 +106,6 @@ function App() {
         },
         body: JSON.stringify(body),
       });
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body),
-      });
 
       if (!response.ok) {
         const errorData = await response.json();
