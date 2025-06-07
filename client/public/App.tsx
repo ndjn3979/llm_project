@@ -34,43 +34,41 @@ function App() {
   const [searchMode, setSearchMode] = useState<'situation' | 'actor' | 'movie'>('situation');
 
   const handleSubmit = async (data: {
-  situation?: string;
-  mood?: string;
-  actor?: string;
-  movie?: string;
-}) => {
-  setIsLoading(true);
-  setError(null);
-  
-  try {
-    let body: any = {};
-    let endpoint = '/api/movie-quotes';
+    situation?: string;
+    mood?: string;
+    actor?: string;
+    movie?: string;
+  }) => {
+    setIsLoading(true);
+    setError(null);
     
-    // Added searchMode toggles
+    try {
+      let body: any = {};
+      let endpoint = '/api/movie-quotes';
+      
+      if (searchMode === 'situation') {
+        body = {
+          naturalLanguageQuery: data.situation,
+          mood: data.mood === 'inspirational' ? 'dramatic' : 
+                data.mood === 'romantic' ? 'dramatic' : 
+                data.mood === 'neutral' ? 'cool' : 
+                data.mood === 'serious' ? 'dramatic' : data.mood
+        };
+      } else if (searchMode === 'actor') {
+        endpoint = '/api/search-by-actor';
+        body = { actorName: data.actor };
+      } else if (searchMode === 'movie') {
+        endpoint = '/api/search-by-movie';
+        body = { movieTitle: data.movie };
+      }
 
-    if (searchMode === 'situation') {
-      body = {
-        naturalLanguageQuery: data.situation,
-        mood: data.mood === 'inspirational' ? 'dramatic' : 
-              data.mood === 'romantic' ? 'dramatic' : 
-              data.mood === 'neutral' ? 'cool' : 
-              data.mood === 'serious' ? 'dramatic' : data.mood
-      };
-    } else if (searchMode === 'actor') {
-      endpoint = '/api/search-by-actor';
-      body = { actorName: data.actor };
-    } else if (searchMode === 'movie') {
-      endpoint = '/api/search-by-movie';
-      body = { movieTitle: data.movie };
-    }
-
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-    });
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -92,6 +90,12 @@ function App() {
     setError(null);
   };
 
+  const handleSearchModeChange = (mode: 'situation' | 'actor' | 'movie') => {
+    setSearchMode(mode);
+    setResults(null); // Clear results when changing search mode
+    setError(null); // Clear any errors
+  };
+
   return (
     <div className="app">
       <header className="app-header">
@@ -102,19 +106,19 @@ function App() {
       <div className="search-mode-toggle">
         <button
           className={searchMode === 'situation' ? 'active' : ''}
-          onClick={() => setSearchMode('situation')}
+          onClick={() => handleSearchModeChange('situation')}
         >
           Search by Situation
         </button>
         <button
           className={searchMode === 'actor' ? 'active' : ''}
-          onClick={() => setSearchMode('actor')}
+          onClick={() => handleSearchModeChange('actor')}
         >
           Search by Actor
         </button>
         <button
           className={searchMode === 'movie' ? 'active' : ''}
-          onClick={() => setSearchMode('movie')}
+          onClick={() => handleSearchModeChange('movie')}
         >
           Search by Movie
         </button>
