@@ -51,7 +51,7 @@ export const parseMovieQuoteRequest: RequestHandler = async (
     return next(error);
   }
 
-  const { naturalLanguageQuery } = req.body;
+  const { naturalLanguageQuery, mood: userSelectedMood } = req.body; // Get user-selected mood
 
   if (typeof naturalLanguageQuery !== 'string') {
     const error: ServerError = {
@@ -70,9 +70,9 @@ export const parseMovieQuoteRequest: RequestHandler = async (
     const situationTypes = detectSituationType(cleanedQuery);
     console.log("3. Detected situations:", situationTypes);
 
-    // Detect the mood/tone they want
-    const mood = detectMood(cleanedQuery);
-    console.log("4. Detected mood:", mood);
+    // Use user-selected mood if provided, otherwise detect from text
+    const mood = userSelectedMood || detectMood(cleanedQuery);
+    console.log("4. Final mood (user-selected or detected):", mood);
 
     // Context object
     res.locals.naturalLanguageQuery = cleanedQuery;

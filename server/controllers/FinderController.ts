@@ -178,15 +178,15 @@ export const searchMovieQuotes: RequestHandler = async (req, res, next) => {
 
     console.log(`11. Selected ${scoredQuotes.length} relevant quotes`);
 
-    // Format results for simple text-only quotes
+    // Updated format for Pinecone Movie + Year addition
     const formattedResults = {
       totalFound: scoredQuotes.length,
       quotes: scoredQuotes.map(match => ({
         quote: {
           quote: match.metadata?.text || 'Unknown quote',
-          actor: 'Unknown', // Will be filled by AI
-          movie: 'Unknown Movie', // Will be filled by AI
-          year: 0, // Will be filled by AI
+          actor: 'Unknown', // Will be filled by AI in ResponseController
+          movie: match.metadata?.movie || 'Unknown Movie', 
+          year: match.metadata?.year || 0, 
           situations: situationTypes, // Use detected situations
           mood: mood
         },

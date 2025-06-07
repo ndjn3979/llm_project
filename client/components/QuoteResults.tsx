@@ -21,6 +21,7 @@ interface ApiResponse {
     originalQuery: string;
     similarity: number;
     cachedAt: number;
+    costSaved?: number; // ADDED: Cost saved information
   };
 }
 
@@ -31,6 +32,11 @@ interface QuoteResultsProps {
 }
 
 const QuoteResults: React.FC<QuoteResultsProps> = ({ results, onReset, searchMode }) => {
+  // ADDED: Function to format cache timestamp
+  const formatCacheDate = (timestamp: number) => {
+    return new Date(timestamp).toLocaleString();
+  };
+
   if (!results.success) {
     return (
       <div className="error-results">
@@ -42,7 +48,30 @@ const QuoteResults: React.FC<QuoteResultsProps> = ({ results, onReset, searchMod
 
   return (
     <div className="quote-results">
-      {results.cached && (
+      {/* UPDATED: Enhanced cache notice with cost information */}
+      {results.cached && results.cacheMatch && (
+        <div className="cache-hit-info">
+          <div className="cache-hit-header">
+            ⚡ Cached Result
+          </div>
+          <div className="cache-hit-details">
+            {results.cacheMatch.costSaved && (
+              <span className="cost-saved">
+                💰 Saved ${results.cacheMatch.costSaved.toFixed(6)}
+              </span>
+            )}
+            <span className="similarity">
+              🎯 {(results.cacheMatch.similarity * 100).toFixed(1)}% match
+            </span>
+            <span className="cached-time">
+              🕐 Cached {formatCacheDate(results.cacheMatch.cachedAt)}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* FALLBACK: Keep your original cache notice for backwards compatibility */}
+      {results.cached && !results.cacheMatch?.costSaved && (
         <div className="cache-notice">
           <p>✨ Smart match found from similar previous query ✨</p>
           {results.cacheMatch && (
@@ -85,7 +114,9 @@ const QuoteResults: React.FC<QuoteResultsProps> = ({ results, onReset, searchMod
                   "{quote.quote}"
                   <footer>
                     — {quote.actor} in <cite>{quote.movie}</cite> ({quote.year})
-                    {quote.score && <span className="score">Match score: {quote.score}</span>}
+                    {quote.score && quote.score !== 'N/A' && quote.score !== '0.00' && (
+                      <span className="score">Match score: {quote.score}</span>
+                    )}
                   </footer>
                 </blockquote>
               </li>

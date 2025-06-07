@@ -37,6 +37,28 @@ if (process.env.PINECONE_CACHE_HOST) {
   }
 }
 
+// Cost calculation function with real 2025 prices
+function calculateOpenAICost(model: string, inputTokens: number, outputTokens: number): number {
+  const costs = {
+    'gpt-4o': {
+      input: 0.005 / 1000,   // $5.00 per 1M tokens = $0.005 per 1K
+      output: 0.02 / 1000    // $20.00 per 1M tokens = $0.02 per 1K
+    },
+    'text-embedding-3-small': {
+      input: 0.00002 / 1000, // $0.02 per 1M tokens = $0.00002 per 1K  
+      output: 0              // Embeddings don't have output tokens
+    }
+  };
+  
+  const modelCost = costs[model] || costs['gpt-4o'];
+  return (inputTokens * modelCost.input) + (outputTokens * modelCost.output);
+}
+
+// Estimate tokens from text (rough approximation: 4 chars = 1 token)
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
 // Create embedding for user query
 async function createQueryEmbedding(query: string): Promise<number[]> {
   try {
@@ -52,7 +74,36 @@ async function createQueryEmbedding(query: string): Promise<number[]> {
   }
 }
 
-// Check if we have a similar cached response
+// ADDED: Function to track actual savings
+async function trackActualSavings(costSaved: number) {
+  if (!cacheIndex) {
+    console.log("Cache not available for savings tracking");
+    return;
+  }
+
+  try {
+    const savingsId = `savings_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Create a savings tracking entry
+    const savingsVector = {
+      id: savingsId,
+      values: new Array(1536).fill(0), // Dummy vector for savings tracking
+      metadata: {
+        type: 'actual_savings',
+        costSaved: costSaved,
+        timestamp: Date.now(),
+        date: new Date().toISOString()
+      }
+    };
+
+    await cacheIndex.upsert([savingsVector]);
+    console.log(`📊 Actual savings tracked: $${costSaved.toFixed(6)}`);
+  } catch (error) {
+    console.error("Error tracking actual savings:", error);
+  }
+}
+
+// Check if we have a similar cached response (track actual savings)
 export const checkSemanticCache: RequestHandler = async (req, res, next) => {
   console.log("0. Checking semantic cache for similar queries");
 
@@ -61,6 +112,7 @@ export const checkSemanticCache: RequestHandler = async (req, res, next) => {
   }
 
   const userQuery = req.body.naturalLanguageQuery.trim();
+  const userMood = req.body.mood || 'funny'; // Get the user-selected mood
 
   // Skip cache for very short or generic queries
   if (userQuery.length < 10) {
@@ -74,61 +126,79 @@ export const checkSemanticCache: RequestHandler = async (req, res, next) => {
   }
 
   try {
-    // Embed user query to vector
-    console.log("1. Creating embedding for user query");
-    const queryEmbedding = await createQueryEmbedding(userQuery);
+    // Create a query that includes mood for more precise matching
+    const queryWithMood = `${userQuery} mood:${userMood}`;
+    console.log("1. Creating embedding for user query with mood:", queryWithMood);
+    const queryEmbedding = await createQueryEmbedding(queryWithMood);
+
+    // Calculate embedding cost
+    const embeddingTokens = estimateTokens(queryWithMood);
+    const embeddingCost = calculateOpenAICost('text-embedding-3-small', embeddingTokens, 0);
 
     // Search cache for similar vectors
     console.log("2. Searching cache for similar queries");
     const cacheResults = await cacheIndex.query({
       vector: queryEmbedding,
-      topK: 1, // Only need the most similar one
+      topK: 3, // Get top 3 to check mood matches
       includeMetadata: true,
     });
 
-    // Check similarity threshold
+    // Check similarity threshold AND mood match
     if (cacheResults.matches && cacheResults.matches.length > 0) {
-      const bestMatch = cacheResults.matches[0];
-      const similarity = bestMatch.score || 0;
+      // Find a match with both high similarity AND matching mood
+      for (const match of cacheResults.matches) {
+        const similarity = match.score || 0;
+        const cachedMood = match.metadata?.mood || 'funny';
 
-      console.log(`3. Best cache match similarity: ${similarity.toFixed(3)}`);
+        console.log(`3. Cache match similarity: ${similarity.toFixed(3)}, mood: ${cachedMood} vs ${userMood}`);
 
-      // Similarity ≥ 0.95? - CACHE HIT PATH
-      if (similarity >= SIMILARITY_THRESHOLD && bestMatch.metadata) {
-        console.log("🎯 CACHE HIT! Returning cached response");
+        // Require both high similarity AND mood match
+        if (similarity >= SIMILARITY_THRESHOLD && cachedMood === userMood && match.metadata) {
+          console.log("🎯 CACHE HIT! Returning cached response (query + mood match)");
 
-        // Extract cached response
-        const cachedResponse = {
-          success: true,
-          recommendation: bestMatch.metadata.llmResponse as string,
-          situation: userQuery,
-          mood: bestMatch.metadata.mood as string || 'funny',
-          quotesFound: bestMatch.metadata.quotesFound as number || 0,
-          // Parse availableQuotes back from string
-          availableQuotes: JSON.parse(bestMatch.metadata.availableQuotesText as string || '[]'),
-          cached: true,
-          cacheMatch: {
-            originalQuery: bestMatch.metadata.originalQuery as string,
-            similarity: similarity,
-            cachedAt: bestMatch.metadata.timestamp as number
-          },
-          timestamp: new Date().toISOString()
-        };
+          // Get cached cost information
+          const cachedCost = match.metadata.estimatedCost as number || 0;
+          console.log(`💰 Cost saved: $${cachedCost.toFixed(6)}`);
 
-        // Return cached response immediately, skip all other controllers
-        res.locals.finalResponse = cachedResponse;
-        res.locals.skipToEnd = true;
-        
-        return next();
+          // Track this as an actual savings event
+          await trackActualSavings(cachedCost);
+
+          // Extract cached response
+          const cachedResponse = {
+            success: true,
+            recommendation: match.metadata.llmResponse as string,
+            situation: userQuery,
+            mood: cachedMood,
+            quotesFound: match.metadata.quotesFound as number || 0,
+            // Parse availableQuotes back from string
+            availableQuotes: JSON.parse(match.metadata.availableQuotesText as string || '[]'),
+            cached: true,
+            cacheMatch: {
+              originalQuery: match.metadata.originalQuery as string,
+              similarity: similarity,
+              cachedAt: match.metadata.timestamp as number,
+              costSaved: cachedCost
+            },
+            timestamp: new Date().toISOString()
+          };
+
+          // Return cached response immediately, skip all other controllers
+          res.locals.finalResponse = cachedResponse;
+          res.locals.skipToEnd = true;
+          
+          return next();
+        }
       }
     }
 
     // In case of a miss, continue to normal flow
-    console.log("❌ CACHE MISS - Proceeding with normal quote search");
+    console.log("❌ CACHE MISS - No matching query+mood combination found");
     
-    // Store query embedding for later caching
+    // Store query embedding and cost for later caching
     res.locals.queryEmbedding = queryEmbedding;
     res.locals.originalQuery = userQuery;
+    res.locals.embeddingCost = embeddingCost;
+    res.locals.userMood = userMood; // Store mood for saving later
     
     return next();
 
@@ -140,21 +210,21 @@ export const checkSemanticCache: RequestHandler = async (req, res, next) => {
   }
 };
 
-// Save LLM response to cache after generation
+// Save LLM response to cache after generation (UPDATED: Mood-aware saving)
 export const saveToSemanticCache: RequestHandler = async (_req, res, next) => {
-  console.log("16. Saving response to semantic cache");
+  console.log("16. Saving response to semantic cache with mood-aware cost tracking");
 
   // Only save if we have all required data and this wasn't a cache hit
-  const { finalResponse, queryEmbedding, originalQuery } = res.locals;
+  const { finalResponse, queryEmbedding, originalQuery, embeddingCost, userMood } = res.locals;
 
   if (!finalResponse || !queryEmbedding || !originalQuery || res.locals.skipToEnd) {
     console.log("Skipping cache save (missing data or was cache hit)");
-    return; // Don't call next() - we're done
+    return; // Don't call next()
   }
 
   if (!cacheIndex) {
     console.log("Cache not available, skipping save");
-    return; // Don't call next() - we're done
+    return; // Don't call next()
   }
 
   try {
@@ -163,32 +233,45 @@ export const saveToSemanticCache: RequestHandler = async (_req, res, next) => {
 
     if (llmResponse.length === 0) {
       console.log("Empty LLM response, not caching");
-      return; // Don't call next() - we're done
+      return; // Don't call next()
     }
+
+    // Calculate estimated cost for this query
+    const queryWithMood = `${originalQuery} mood:${userMood || finalResponse.mood}`;
+    const inputTokens = estimateTokens(queryWithMood);
+    const outputTokens = estimateTokens(llmResponse);
+    const llmCost = calculateOpenAICost('gpt-4o', inputTokens, outputTokens);
+    const totalCost = llmCost + (embeddingCost || 0);
 
     // Create unique cache entry ID
     const cacheId = `cache_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    // SAVE to cache with query embedding + essential AI response data
+    // Save with mood-aware query for better matching
     const cacheVector = {
       id: cacheId,
-      values: queryEmbedding,
+      values: queryEmbedding, // This was created with mood included
       metadata: {
+        type: 'cached_response', // Mark as cached response (not savings tracking)
         originalQuery: originalQuery,
+        queryWithMood: queryWithMood, // Store the mood-enhanced query
         llmResponse: llmResponse,
         mood: finalResponse.mood,
         quotesFound: finalResponse.quotesFound,
         // Convert availableQuotes to a simple string for storage
         availableQuotesText: JSON.stringify(finalResponse.availableQuotes),
         timestamp: Date.now(),
-        queryLength: originalQuery.length
+        queryLength: originalQuery.length,
+        estimatedCost: totalCost, // Total cost including embedding + LLM
+        inputTokens: inputTokens,
+        outputTokens: outputTokens
       }
     };
 
     await cacheIndex.upsert([cacheVector]);
     
-    console.log("✅ Response saved to semantic cache");
-    console.log(`Cache entry: "${originalQuery}" -> ${llmResponse.substring(0, 50)}...`);
+    console.log("✅ Response saved to semantic cache with mood-aware matching");
+    console.log(`Cache entry: "${originalQuery}" + "${finalResponse.mood}" -> ${llmResponse.substring(0, 50)}...`);
+    console.log(`💰 Estimated cost saved for future queries: $${totalCost.toFixed(6)}`);
 
   } catch (error: any) {
     console.error("Error saving to cache:", error);

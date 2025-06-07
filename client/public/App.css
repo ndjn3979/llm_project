@@ -230,7 +230,7 @@ button:disabled {
   .quote-results {
     padding: 1.5rem;
   }
-}/* Add these new styles to your existing App.css */
+}
 
 /* Loading Spinner */
 .spinner {
@@ -378,5 +378,131 @@ input[type="text"] {
     width: 80%;
     margin-bottom: 0.5rem;
   }
- 
+}
+
+/* NEW: Cost tracking styles - ADD THESE TO YOUR EXISTING CSS */
+.cost-savings-container {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+  margin: 15px 0;
+  flex-wrap: wrap;
+}
+
+.session-savings, .total-savings {
+  background: linear-gradient(135deg, var(--success-color), #38a169);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 0.9em;
+  font-weight: 500;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.total-savings {
+  background: linear-gradient(135deg, var(--primary-color), #2c3eaa);
+}
+
+.cache-hit-banner {
+  background: linear-gradient(135deg, #ff9800, #f57c00);
+  color: white;
+  padding: 10px 20px;
+  border-radius: 25px;
+  margin: 10px auto;
+  max-width: 300px;
+  font-weight: 500;
+  animation: slideInBounce 0.5s ease-out;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+@keyframes slideInBounce {
+  0% {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+  60% {
+    transform: translateY(5px);
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.cache-footer {
+  color: var(--success-color);
+  font-weight: 500;
+  margin-top: 5px;
+}
+
+/* Cache hit information in results */
+.cache-hit-info {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 15px 20px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.cache-hit-header {
+  font-size: 1.1em;
+  font-weight: bold;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.cache-hit-details {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+  flex-wrap: wrap;
+  font-size: 0.85em;
+}
+
+.cache-hit-details span {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 4px 10px;
+  border-radius: 10px;
+  backdrop-filter: blur(10px);
+}
+
+.cost-saved {
+  background: rgba(72, 187, 120, 0.3) !important;
+}
+
+.similarity {
+  background: rgba(63, 81, 181, 0.3) !important;
+}
+
+.cached-time {
+  background: rgba(255, 152, 0, 0.3) !important;
+}
+
+/* Responsive design for cost elements */
+@media (max-width: 600px) {
+  .cost-savings-container {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .session-savings, .total-savings {
+    min-width: 200px;
+  }
+  
+  .cache-hit-banner {
+    font-size: 0.9em;
+    padding: 8px 16px;
+  }
+  
+  .cache-hit-details {
+    flex-direction: column;
+    gap: 8px;
+    align-items: center;
+  }
+  
+  .cache-hit-details span {
+    min-width: 120px;
+    text-align: center;
+  }
 }

@@ -60,7 +60,7 @@ If you don't recognize a quote, just say "from a classic movie" instead of guess
   `;
 }
 
-// Main controller - generate response and format it (updated for text-only)
+// Situational search controller - Generate response and format it
 export const generateMovieQuoteResponse: RequestHandler = async (_req, res, next) => {
   console.log("9. Generating movie quote response");
 
@@ -110,6 +110,73 @@ export const generateMovieQuoteResponse: RequestHandler = async (_req, res, next
     const recommendation = completion.choices[0].message.content?.trim() || '';
     console.log("12. AI recommendation generated");
 
+    // Quote processing to identify actors
+    console.log("13. Identifying actors for quotes");
+    let enhancedQuotes = searchResults.quotes.map((result: any) => ({
+      quote: result.quote.quote,
+      actor: "Unknown actor", // Will be enhanced below
+      movie: result.quote.movie || "Unknown movie", // Use Pinecone movie data
+      year: result.quote.year || 0,
+      score: result.score.toFixed(2)
+    }));
+
+    // Get actor information for the quotes
+    if (enhancedQuotes.length > 0) {
+      try {
+        const actorPrompt = `For each of these movie quotes, identify the actor who said them:
+        ${enhancedQuotes.map((q, i) => `${i+1}. "${q.quote}" from ${q.movie}`).join('\n')}
+
+          Respond with a JSON array like this:
+          [
+            {
+              "quote": "exact quote text",
+              "actor": "actor name",
+              "movie": "movie title"
+            }
+          ]
+
+          Only include the actor name, don't add character information.`;
+
+        const actorCompletion = await openai.chat.completions.create({
+          model: "gpt-4o",
+          messages: [
+            { role: "system", content: "You are a movie expert who can identify actors from their quotes. Provide accurate actor information." },
+            { role: "user", content: actorPrompt }
+          ],
+          temperature: 0.3,
+          max_tokens: 800
+        });
+
+        const actorResponseText = actorCompletion.choices[0].message.content?.trim() || '';
+        
+        // Try to parse the JSON response
+        try {
+          const jsonMatch = actorResponseText.match(/\[[\s\S]*\]/);
+          if (jsonMatch) {
+            const actorData = JSON.parse(jsonMatch[0]);
+            
+            // Match quotes with actor data
+            enhancedQuotes = enhancedQuotes.map((quote, index) => {
+              const matchingActor = actorData.find((a: any) => 
+                a.quote && quote.quote.includes(a.quote.substring(0, 20))
+              ) || actorData[index];
+              
+              return {
+                ...quote,
+                actor: matchingActor?.actor || quote.actor
+              };
+            });
+            
+            console.log("14. Actor identification completed");
+          }
+        } catch (parseError) {
+          console.log("14. Actor identification failed, using original data");
+        }
+      } catch (actorError) {
+        console.log("14. Actor identification request failed, using original data");
+      }
+    }
+
     // Response format
     const response = {
       success: true,
@@ -117,17 +184,11 @@ export const generateMovieQuoteResponse: RequestHandler = async (_req, res, next
       situation: naturalLanguageQuery,
       mood: mood,
       quotesFound: searchResults.totalFound,
-      availableQuotes: searchResults.quotes.map((result: any) => ({
-        quote: result.quote.quote,
-        actor: "AI will identify", // Let AI identify in the response
-        movie: "AI will identify",
-        year: 0,
-        score: result.score.toFixed(2)
-      })),
+      availableQuotes: enhancedQuotes,
       timestamp: new Date().toISOString()
     };
 
-    console.log("13. Response formatted");
+    console.log("15. Response formatted with actor information");
     res.locals.finalResponse = response;
     return next();
 

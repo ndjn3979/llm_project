@@ -20,6 +20,11 @@ import {
 
 const router = express.Router();
 
+// Initialize Pinecone for cost tracking endpoint
+const pinecone = new Pinecone({
+  apiKey: process.env.PINECONE_API_KEY!
+});
+
 // Main movie quotes endpoint (situation-based search with semantic caching)
 router.post('/movie-quotes', 
   // Step 1: Parse the request and extract situation/mood
@@ -65,6 +70,84 @@ router.post('/search-by-movie',
   sendResponse
 );
 
+// UPDATED: Cache statistics with actual vs potential savings
+router.get('/cache-stats', async (req, res) => {
+  console.log("Cache stats endpoint called");
+  
+  try {
+    // Connect to cache index
+    let cacheIndex: any = null;
+    
+    if (process.env.PINECONE_CACHE_HOST) {
+      cacheIndex = pinecone.Index('cache', process.env.PINECONE_CACHE_HOST);
+    } else {
+      cacheIndex = pinecone.Index('cache');
+    }
+
+    if (!cacheIndex) {
+      return res.status(503).json({
+        success: false,
+        message: 'Cache not available'
+      });
+    }
+
+    console.log("Getting cache statistics...");
+    
+    // Get cache statistics
+    const stats = await cacheIndex.describeIndexStats();
+    
+    // Query cache entries to calculate both potential and actual savings
+    const allCacheEntries = await cacheIndex.query({
+      vector: new Array(1536).fill(0.01), // Dummy vector
+      topK: 10000, // Get many entries to capture all data
+      includeMetadata: true
+    });
+
+    let potentialSavings = 0;
+    let actualSavings = 0;
+    let totalCachedQueries = 0;
+    let savingsEvents = 0;
+
+    if (allCacheEntries.matches) {
+      allCacheEntries.matches.forEach(match => {
+        if (match.metadata?.type === 'actual_savings') {
+          // This is a savings tracking entry (when someone got a cache hit)
+          actualSavings += match.metadata.costSaved as number;
+          savingsEvents++;
+        } else if (match.metadata?.type === 'cached_response' || match.metadata?.estimatedCost) {
+          // This is a cached query entry (potential future savings)
+          potentialSavings += match.metadata.estimatedCost as number || 0;
+          totalCachedQueries++;
+        }
+      });
+    }
+
+    console.log(`Cache stats: ${totalCachedQueries} cached queries, $${actualSavings.toFixed(6)} actual savings from ${savingsEvents} cache hits`);
+
+    res.json({
+      success: true,
+      cacheStats: {
+        totalEntries: stats.totalVectorCount || 0,
+        totalCachedQueries: totalCachedQueries,
+        potentialSavings: potentialSavings, // Total value of all cached responses
+        actualSavings: actualSavings, // Real money saved from cache hits
+        cacheHitsCount: savingsEvents, // Number of times cache was used
+        averageSavingsPerHit: savingsEvents > 0 ? actualSavings / savingsEvents : 0,
+        efficiencyRatio: potentialSavings > 0 ? (actualSavings / potentialSavings) * 100 : 0, // What % of potential has been realized
+        lastUpdated: new Date().toISOString()
+      }
+    });
+
+  } catch (error: any) {
+    console.error("Cache stats error:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      message: 'Failed to get cache statistics'
+    });
+  }
+});
+
 // Test endpoint to check if API is working
 router.get('/test', (req, res) => {
   res.json({ 
@@ -100,10 +183,6 @@ router.get('/test-pinecone', async (req, res) => {
       });
     }
 
-    const pinecone = new Pinecone({
-      apiKey: process.env.PINECONE_API_KEY
-    });
-
     const indexName = process.env.PINECONE_INDEX;
     const index = pinecone.Index(indexName, process.env.PINECONE_HOST);
     
@@ -129,10 +208,6 @@ router.get('/test-pinecone', async (req, res) => {
 // Simple test with minimal parameters
 router.get('/test-simple', async (req, res) => {
   try {
-    const pinecone = new Pinecone({
-      apiKey: process.env.PINECONE_API_KEY!
-    });
-
     const index = pinecone.Index(process.env.PINECONE_INDEX!, process.env.PINECONE_HOST!);
     
     // Most basic possible query in 'default' namespace
@@ -163,9 +238,6 @@ router.get('/test-simple', async (req, res) => {
 // Test with new API key using exact quote text
 router.get('/test-new-key', async (req, res) => {
   try {
-    const pinecone = new Pinecone({
-      apiKey: process.env.PINECONE_API_KEY!
-    });
     const openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY!
     });
@@ -242,6 +314,7 @@ router.get('/health', (req, res) => {
       'POST /api/movie-quotes - Get movie quote recommendations',
       'POST /api/search-by-actor - Search quotes by actor name',
       'POST /api/search-by-movie - Search quotes by movie title',
+      'GET /api/cache-stats - Get cache statistics and cost savings',
       'GET /api/test - Test endpoint',
       'GET /api/test-simple - Simple Pinecone test',
       'GET /api/test-new-key - Test with new API key',
