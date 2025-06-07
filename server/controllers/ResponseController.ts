@@ -316,92 +316,6 @@ Only include real, famous quotes that are actually from movies starring ${actorN
   }
 };
 
-/* Actor search controller (if 'actor' gets added to Pinecone)
-export const searchByActor: RequestHandler = async (req, res, next) => {
-  console.log("1. Actor search request started");
-  
-  try {
-    const { actorName } = req.body;
-    console.log("2. Processing actor search for:", actorName);
-    
-    if (!actorName || typeof actorName !== 'string') {
-      console.log("❌ Actor search failed: Invalid actor name provided");
-      const error: ServerError = {
-        log: 'Invalid actor name provided',
-        status: 400,
-        message: { err: 'Actor name is required' },
-      };
-      return next(error);
-    }
-
-    console.log("3. Connecting to Pinecone index");
-    const index = pinecone.Index(process.env.PINECONE_INDEX!, process.env.PINECONE_HOST!);
-    
-    console.log("4. Creating embedding for actor search query");
-    const searchQuery = `actor ${actorName} movie quotes`;
-    console.log("   Enhanced search query:", searchQuery);
-    
-    const embedding = await openai.embeddings.create({
-      model: "text-embedding-3-small",
-      input: searchQuery,
-    });
-    
-    console.log("5. Searching Pinecone database for actor quotes");
-    const searchResults = await index.namespace('default').query({
-      vector: embedding.data[0].embedding,
-      topK: 20,
-      includeMetadata: true,
-      filter: {
-        actor: { "$eq": actorName }  // Only return quotes where movie field equals the search term
-      }
-    });
-
-    console.log(`6. Found ${searchResults.matches?.length || 0} potential quotes for actor`);
-
-    if (!searchResults.matches || searchResults.matches.length === 0) {
-      console.log("❌ No quotes found for actor:", actorName);
-      const error: ServerError = {
-        log: `No quotes found for actor: ${actorName}`,
-        status: 404,
-        message: { err: `No quotes found for actor "${actorName}"` },
-      };
-      return next(error);
-    }
-
-    console.log("7. Processing and formatting quote results");
-    const quotes = searchResults.matches.map((match, index) => {
-      console.log(`   Quote ${index + 1}: "${(match.metadata?.text || 'Unknown quote').substring(0, 50)}..." (score: ${(match.score || 0).toFixed(2)})`);
-      return {
-        quote: match.metadata?.text || 'Unknown quote',
-        actor: 'Unknown',
-        movie: 'Unknown Movie',
-        year: 0,
-        score: (match.score || 0).toFixed(2)
-      };
-    });
-
-    // Store results for response generation
-    res.locals.actorSearchResults = {
-      actorName,
-      quotes,
-      totalFound: quotes.length
-    };
-
-    console.log("8. Actor search completed, proceeding to response generation");
-    return next();
-
-  } catch (error: any) {
-    console.error('❌ Actor search error:', error.message);
-    const serverError: ServerError = {
-      log: `Actor search failed: ${error.message}`,
-      status: 500,
-      message: { err: 'Failed to search quotes by actor' },
-    };
-    return next(serverError);
-  }
-};
-*/
-
 // Movie search controller
 export const searchByMovie: RequestHandler = async (req, res, next) => {
   console.log("1. Movie search request started");
@@ -571,65 +485,7 @@ Some actors famous for memorable quotes include Tom Hanks, Arnold Schwarzenegger
   }
 };
 
-/* Generate actor search response (Pinecone version)
-export const generateActorResponse: RequestHandler = async (_req, res, next) => {
-  console.log("9. Generating AI response to identify and verify actor quotes");
-
-  const { actorSearchResults } = res.locals;
-
-  if (!actorSearchResults) {
-    const error: ServerError = {
-      log: 'Actor search results missing',
-      status: 500,
-      message: { err: 'Error occurred before generating actor response' },
-    };
-    return next(error);
-  }
-
-  try {
-    const { actorName, quotes } = actorSearchResults;
-
-    const prompt = `You found these movie quotes potentially by actor "${actorName}". For each quote, identify if it's actually by ${actorName} and from which movie/character. Format nicely and only include quotes that are actually by this actor.`;
-    
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        { role: "system", content: "You are a movie expert who can identify actors and their quotes." },
-        { role: "user", content: `${prompt}\n\nQuotes: ${quotes.map((q: any) => q.quote).join('\n')}` }
-      ],
-      temperature: 0.3,
-      max_tokens: 800
-    });
-
-    console.log("10. AI analysis completed");
-    const recommendation = completion.choices[0].message.content?.trim() || '';
-    console.log("    Generated recommendation length:", recommendation.length, "characters");
-
-    const response = {
-      success: true,
-      recommendation: recommendation,
-      quotesFound: quotes.length,
-      availableQuotes: quotes,
-      timestamp: new Date().toISOString()
-    };
-
-    res.locals.finalResponse = response;
-    console.log("11. Actor response formatted");
-    return next();
-
-  } catch (error: any) {
-    console.error("Error generating actor response:", error);
-    const serverError: ServerError = {
-      log: `Error generating actor response: ${error.message}`,
-      status: 500,
-      message: { err: 'Error generating actor quote response' },
-    };
-    return next(serverError);
-  }
-};
-*/
-
-// Generate movie search response (AI assistance for Actor search)
+// Generate movie search response (AI assistance for Actor search) - UPDATED VERSION
 export const generateMovieResponse: RequestHandler = async (_req, res, next) => {
   console.log("9. Generating AI response to identify actors for movie quotes");
 
@@ -661,13 +517,12 @@ export const generateMovieResponse: RequestHandler = async (_req, res, next) => 
   try {
     const { movieTitle, quotes } = movieSearchResults;
 
-    // Simplified prompt focused on actor identification and clean presentation
+    // Create a prompt that asks for both formatted response AND structured data
     const prompt = `Here are quotes from the movie "${movieTitle}". For each quote, provide the character name and actor who said it.
 
 Quotes:
 ${quotes.map((q: any, i: number) => `${i+1}. "${q.quote}"`).join('\n')}
 
-Format your response like this:
 Here are famous quotes from **${movieTitle}**:
 
 **1. "${quotes[0]?.quote}"**
@@ -675,12 +530,17 @@ Here are famous quotes from **${movieTitle}**:
 Actor: Actor Name
 
 [Continue for each quote]
+
+Do NOT say "Here is the structured JSON data" - do NOT provide that JSON data on the frontend response.
 `;
     
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
-        { role: "system", content: "You are a movie expert. Provide clean, formatted information about movie quotes without excessive verification language. Be direct and informative." },
+        { 
+          role: "system", 
+          content: "You are a movie expert. Provide both a nicely formatted response AND structured JSON data at the end. Be accurate about actors and characters." 
+        },
         { role: "user", content: prompt }
       ],
       temperature: 0.3,
@@ -690,37 +550,85 @@ Actor: Actor Name
     console.log("10. AI actor identification completed");
     const responseText = completion.choices[0].message.content?.trim() || '';
     
-    // Try to extract JSON and enhance quotes with actor information
-    let enhancedQuotes = quotes; // fallback to original quotes
+    // Enhanced JSON parsing with better fallback
+    let enhancedQuotes = quotes.map((quote: any) => ({
+      ...quote,
+      actor: 'Unknown actor' // Default fallback
+    }));
+
     try {
       console.log("11. Parsing enhanced quote data with actor information");
+      
+      // Try to extract JSON from the response
       const jsonMatch = responseText.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
         const aiQuotes = JSON.parse(jsonMatch[0]);
-        enhancedQuotes = aiQuotes.map((aiQuote: any, index: number) => ({
-          quote: aiQuote.quote || quotes[index]?.quote || 'Unknown quote',
-          character: aiQuote.character || 'Unknown character',
-          movie: movieTitle,
-          year: aiQuote.year || quotes[index]?.year || 0,
-          score: originalQuote?.score || '0.00', // Use Pinecone score
-          actor: aiQuote.actor || 'Unknown actor'
-        }));
+        console.log("    Found AI quote data:", aiQuotes.length, "quotes");
         
-        console.log(`    Enhanced ${enhancedQuotes.length} quotes with actor information`);
+        // Map AI data to original quotes by matching quote text
+        enhancedQuotes = quotes.map((originalQuote: any, index: number) => {
+  // Try multiple matching strategies
+  let matchingAiQuote = aiQuotes.find((aiQuote: any) => 
+    aiQuote.quote && originalQuote.quote && 
+    (aiQuote.quote.includes(originalQuote.quote.substring(0, 20)) ||
+     originalQuote.quote.includes(aiQuote.quote.substring(0, 20)))
+  );
+  
+  // Fallback to index-based matching
+  if (!matchingAiQuote && aiQuotes[index]) {
+    matchingAiQuote = aiQuotes[index];
+  }
+  
+  return {
+    quote: originalQuote.quote,
+    character: matchingAiQuote?.character || 'Unknown character',
+    movie: movieTitle,
+    year: matchingAiQuote?.year || originalQuote.year || 0,
+    score: originalQuote.score || '0.00',
+    actor: matchingAiQuote?.actor || 'Unknown actor' // Better fallback for debugging
+  };
+});
+        
+        console.log(`    Successfully enhanced ${enhancedQuotes.length} quotes with actor information`);
+      } else {
+        console.log("    No JSON found, trying alternative parsing...");
+        
+        // Alternative: Try to extract actor names from the formatted text
+        const lines = responseText.split('\n');
+        const actorMatches: string[] = [];
+        
+        lines.forEach(line => {
+          const actorMatch = line.match(/Actor:\s*(.+)/i);
+          if (actorMatch) {
+            actorMatches.push(actorMatch[1].trim());
+          }
+        });
+        
+        if (actorMatches.length > 0) {
+          enhancedQuotes = quotes.map((quote: any, index: number) => ({
+            ...quote,
+            actor: actorMatches[index] || actorMatches[0] || 'Unknown actor'
+          }));
+          console.log(`    Extracted ${actorMatches.length} actor names from text`);
+        }
       }
     } catch (parseError) {
-      console.log("    Failed to parse enhanced quote data, using original quotes");
-      // Enhance original quotes with fallback actor info
-      enhancedQuotes = quotes.map((quote: any) => ({
-        ...quote,
-        actor: 'Unknown actor'
-      }));
+      console.log("    JSON parsing failed, using original quotes with unknown actors");
+      console.error("    Parse error:", parseError);
     }
 
-    // Extract just the text part (before JSON) for the recommendation
-    const recommendationText = responseText.replace(/\[[\s\S]*\]/, '').trim();
+    // Extract just the formatted text part (remove any JSON fragments)
+    let recommendationText = responseText
+      .replace(/\[[\s\S]*\]/, '') // Remove complete JSON arrays
+      .replace(/\{[\s\S]*\}/, '') // Remove JSON objects
+      .replace(/\{\s*"[^"]*":\s*\}?/, '') // Remove incomplete JSON like { "quotes": }
+      .replace(/^\s*\{.*$/gm, '') // Remove lines that start with {
+      .replace(/^\s*\}.*$/gm, '') // Remove lines that start with }
+      .replace(/^\s*"[^"]*":\s*$/gm, '') // Remove lines with just key definitions
+      .trim();
     
     console.log("    Generated recommendation length:", recommendationText.length, "characters");
+    console.log("    Enhanced quotes sample:", enhancedQuotes[0]);
 
     const response = {
       success: true,
